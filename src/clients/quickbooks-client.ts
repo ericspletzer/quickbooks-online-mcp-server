@@ -7,9 +7,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import open from 'open';
 
-dotenv.config();
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '..', '..', '.env'), override: true });
 const client_id = process.env.QUICKBOOKS_CLIENT_ID;
 const client_secret = process.env.QUICKBOOKS_CLIENT_SECRET;
 const refresh_token = process.env.QUICKBOOKS_REFRESH_TOKEN;
@@ -155,22 +154,32 @@ class QuickbooksClient {
 
   private saveTokensToEnv(): void {
     const tokenPath = path.join(__dirname, '..', '..', '.env');
-    const envContent = fs.readFileSync(tokenPath, 'utf-8');
-    const envLines = envContent.split('\n');
-    
-    const updateEnvVar = (name: string, value: string) => {
-      const index = envLines.findIndex(line => line.startsWith(`${name}=`));
-      if (index !== -1) {
-        envLines[index] = `${name}=${value}`;
-      } else {
-        envLines.push(`${name}=${value}`);
-      }
-    };
+    const tmpPath = tokenPath + '.tmp';
+    try {
+      const envContent = fs.readFileSync(tokenPath, 'utf-8');
+      const envLines = envContent.split('\n');
 
-    if (this.refreshToken) updateEnvVar('QUICKBOOKS_REFRESH_TOKEN', this.refreshToken);
-    if (this.realmId) updateEnvVar('QUICKBOOKS_REALM_ID', this.realmId);
+      const updateEnvVar = (name: string, value: string) => {
+        const index = envLines.findIndex(line => line.startsWith(`${name}=`));
+        if (index !== -1) {
+          envLines[index] = `${name}=${value}`;
+        } else {
+          envLines.push(`${name}=${value}`);
+        }
+      };
 
-    fs.writeFileSync(tokenPath, envLines.join('\n'));
+      if (this.refreshToken) updateEnvVar('QUICKBOOKS_REFRESH_TOKEN', this.refreshToken);
+      if (this.realmId) updateEnvVar('QUICKBOOKS_REALM_ID', this.realmId);
+
+      // Atomic write: write to .env.tmp then rename so a mid-write crash cannot corrupt .env
+      fs.writeFileSync(tmpPath, envLines.join('\n'));
+      fs.renameSync(tmpPath, tokenPath);
+    } catch (err: any) {
+      // Surface write failures — a silent failure here is what causes the doom loop
+      console.error('[QBO] CRITICAL: saveTokensToEnv failed — rotated token NOT persisted to disk:', err.message);
+      console.error('[QBO] Token path attempted:', tokenPath);
+      // Do not rethrow — the in-memory token is still valid for this session
+    }
   }
 
   async refreshAccessToken() {
@@ -186,18 +195,33 @@ class QuickbooksClient {
     try {
       // At this point we know refreshToken is not undefined
       const authResponse = await this.oauthClient.refreshUsingToken(this.refreshToken);
-      
+
       this.accessToken = authResponse.token.access_token;
-      
+
+      // Intuit rotates the refresh token on every successful exchange.
+      // Always persist whatever refresh token Intuit returns — even if the value
+      // looks identical (Intuit has a short reuse grace window where the same
+      // token string is returned but the server-side record is still advanced).
+      // Dropping the !== guard prevents the doom loop where a grace-window response
+      // causes no write, the in-memory token diverges from .env, and the next
+      // session loads the now-invalidated token.
+      const rotatedRefreshToken: string | undefined = (authResponse.token as any).refresh_token;
+      if (rotatedRefreshToken) {
+        this.refreshToken = rotatedRefreshToken;
+        this.saveTokensToEnv();
+        console.error('[QBO] Refresh token persisted to .env.');
+      }
+
       // Calculate expiry time
       const expiresIn = authResponse.token.expires_in || 3600; // Default to 1 hour
       this.accessTokenExpiry = new Date(Date.now() + expiresIn * 1000);
-      
+
       return {
         access_token: this.accessToken,
         expires_in: expiresIn,
       };
     } catch (error: any) {
+      console.error('[QBO] Intuit error:', (error as any).error, '-', (error as any).error_description, '| intuit_tid:', (error as any).intuit_tid, '| raw:', JSON.stringify(error));
       throw new Error(`Failed to refresh Quickbooks token: ${error.message}`);
     }
   }

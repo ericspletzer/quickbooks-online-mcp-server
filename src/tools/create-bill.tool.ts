@@ -60,7 +60,11 @@ const toolSchema = z.object({
 });
 
 const toolHandler = async (args: { [x: string]: any }) => {
-  const response = await createQuickbooksBill(args.bill);
+  // CE patch 2026-09-09: RegisterTool wraps schema in {params:...} so args shape
+  // is {params:{bill:{...}}}. Reading args.bill sent an EMPTY payload, which QBO
+  // rejected as "SAXParseException: Premature end of file" — the long-standing
+  // BUG-006 symptom misdiagnosed for days as a dead connection.
+  const response = await createQuickbooksBill(args.params?.bill ?? args.bill);
 
   if (response.isError) {
     return {

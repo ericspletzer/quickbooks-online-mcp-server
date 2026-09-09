@@ -27,7 +27,8 @@ const toolSchema = z.object({
 });
 
 const toolHandler = async (args: { [x: string]: any }) => {
-  const response = await createQuickbooksVendor(args.vendor);
+  // CE patch 2026-09-09: same {params:...} unwrap bug as create-bill (BUG-006).
+  const response = await createQuickbooksVendor(args.params?.vendor ?? args.vendor);
 
   if (response.isError) {
     return {

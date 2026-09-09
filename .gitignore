@@ -3,3 +3,9 @@
 node_modules
 dist
 coverage
+
+# Secrets — never commit. Covers .env, .env.bak, .env.local, etc.
+.env*
+!.env.example
+*.pem
+*.key

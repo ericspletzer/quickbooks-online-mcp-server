@@ -12,7 +12,8 @@ const toolSchema = z.object({
 });
 
 const toolHandler = async (args: { [x: string]: any }) => {
-  const response = await deleteQuickbooksBill(args.bill);
+  // CE patch 2026-09-09: same {params:...} unwrap bug as create-bill (BUG-006).
+  const response = await deleteQuickbooksBill(args.params?.bill ?? args.bill);
 
   if (response.isError) {
     return {

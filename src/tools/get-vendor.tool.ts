@@ -9,7 +9,10 @@ const toolSchema = z.object({
 });
 
 const toolHandler = async (args: { [x: string]: any }) => {
-  const response = await getQuickbooksVendor(args.id);
+  // CE patch 2026-04-27: RegisterTool wraps schema in {params:...} so args shape
+  // is {params:{id:"..."}}. Read via args.params.id, fallback to args.id
+  // for any future SDK version that unwraps automatically.
+  const response = await getQuickbooksVendor((args.params ?? args).id);
 
   if (response.isError) {
     return {

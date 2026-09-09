@@ -12,6 +12,8 @@ const toolSchema = z.object({
   description: z.string().optional().describe("Description"),
   billable_status: z.enum(["Billable", "NotBillable", "HasBeenBilled"]).optional().describe("Billable status"),
   item_ref: z.string().optional().describe("Service Item ID (ItemRef) — the QBO Item to associate with this time entry"),
+  class_ref: z.string().optional().describe("Class ID for cost classification (QBO ClassRef.value)"),
+  txn_date: z.string().optional().describe("REQUIRED IN PRACTICE (YYYY-MM-DD): QBO defaults TxnDate to TODAY on a sparse TimeActivity update when it is omitted, silently re-dating the entry. Always pass the record's EXISTING TxnDate to preserve it."),
 });
 
 const toolHandler = async ({ params }: any) => {

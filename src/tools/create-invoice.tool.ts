@@ -10,6 +10,9 @@ const lineItemSchema = z.object({
   qty: z.number().positive(),
   unit_price: z.number().nonnegative(),
   description: z.string().optional(),
+  linked_txn_id: z.string().optional().describe("TimeActivity ID to link this line to — when present, invoice line carries LinkedTxn and flips HasBeenBilled on the TA"),
+  service_date: z.string().optional().describe("Date the work/goods were actually delivered (YYYY-MM-DD) — sets SalesItemLineDetail.ServiceDate. Distinct from the invoice TxnDate; put the real service date here rather than only in the description."),
+  class_ref: z.string().optional().describe("Class ID for this line (sets SalesItemLineDetail.ClassRef). Requires QBO class tracking to be set to per-line, not per-transaction."),
 });
 
 const toolSchema = z.object({
@@ -17,6 +20,7 @@ const toolSchema = z.object({
   line_items: z.array(lineItemSchema).min(1),
   doc_number: z.string().optional(),
   txn_date: z.string().optional(),
+  private_note: z.string().optional().describe("Internal memo on the invoice (PrivateNote) — not visible to customer"),
 });
 
 const toolHandler = async ({ params }: any) => {

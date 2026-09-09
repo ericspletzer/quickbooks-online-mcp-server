@@ -16,6 +16,7 @@ const toolSchema = z.object({
   description: z.string().optional().describe("Description of work"),
   billable_status: z.enum(["Billable", "NotBillable", "HasBeenBilled"]).optional().describe("Billable status"),
   hourly_rate: z.number().optional().describe("Hourly rate"),
+  class_ref: z.string().optional().describe("Class ID for cost classification (QBO ClassRef.value)"),
 });
 
 const toolHandler = async ({ params }: any) => {

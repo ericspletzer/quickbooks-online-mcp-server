@@ -16,6 +16,7 @@ export interface CreateTimeActivityInput {
   description?: string;
   billable_status?: "Billable" | "NotBillable" | "HasBeenBilled";
   hourly_rate?: number;
+  class_ref?: string;
 }
 
 export async function createQuickbooksTimeActivity(data: CreateTimeActivityInput): Promise<ToolResponse<any>> {
@@ -39,6 +40,7 @@ export async function createQuickbooksTimeActivity(data: CreateTimeActivityInput
     if (data.description) payload.Description = data.description;
     if (data.billable_status) payload.BillableStatus = data.billable_status;
     if (data.hourly_rate !== undefined) payload.HourlyRate = data.hourly_rate;
+    if (data.class_ref) payload.ClassRef = { value: data.class_ref };
 
     return new Promise((resolve) => {
       (quickbooks as any).createTimeActivity(payload, (err: any, created: any) => {

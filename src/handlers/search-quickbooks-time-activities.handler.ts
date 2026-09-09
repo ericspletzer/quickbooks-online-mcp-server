@@ -15,13 +15,21 @@ export async function searchQuickbooksTimeActivities(data: SearchTimeActivitiesI
   try {
     await quickbooksClient.authenticate();
     const quickbooks = quickbooksClient.getQuickbooks();
-    const criteria: Record<string, any> = {};
-    if (data.employee_ref) criteria.EmployeeRef = data.employee_ref;
-    if (data.vendor_ref) criteria.VendorRef = data.vendor_ref;
-    if (data.customer_ref) criteria.CustomerRef = data.customer_ref;
-    if (data.txn_date_from) criteria.TxnDate = { $gte: data.txn_date_from };
-    if (data.txn_date_to) criteria.TxnDate = { ...criteria.TxnDate, $lte: data.txn_date_to };
-    if (data.limit) criteria.limit = data.limit;
+
+    // node-quickbooks expects an array of {field, value, operator} objects for range queries.
+    // Using a plain object with $gte/$lte sub-keys causes the library to serialize them as "[object Object]"
+    // which triggers QBO QueryParserError: Lexical error ... Encountered "[".
+    // Fix: always use the array-of-criterion format so criteriaToString() handles operators correctly.
+    // Note: QBO TimeActivity does NOT support EmployeeRef as a queryable field (returns QueryValidationError:
+    // Property EmployeeRef not found). employee_ref input is accepted but silently ignored at the query
+    // level — callers must post-filter on the returned NameOf/VendorRef if needed.
+    const criteria: Array<Record<string, any>> = [];
+
+    if (data.vendor_ref) criteria.push({ field: 'VendorRef', value: data.vendor_ref, operator: '=' });
+    if (data.customer_ref) criteria.push({ field: 'CustomerRef', value: data.customer_ref, operator: '=' });
+    if (data.txn_date_from) criteria.push({ field: 'TxnDate', value: data.txn_date_from, operator: '>=' });
+    if (data.txn_date_to) criteria.push({ field: 'TxnDate', value: data.txn_date_to, operator: '<=' });
+    if (data.limit) criteria.push({ field: 'limit', value: data.limit });
 
     return new Promise((resolve) => {
       (quickbooks as any).findTimeActivities(criteria, (err: any, result: any) => {

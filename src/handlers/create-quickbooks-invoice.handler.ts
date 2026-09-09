@@ -9,9 +9,13 @@ export interface CreateInvoiceInput {
     qty: number;
     unit_price: number;
     description?: string;
+    linked_txn_id?: string; // TimeActivity ID to link — flips HasBeenBilled on that TA
+    service_date?: string; // YYYY-MM-DD — SalesItemLineDetail.ServiceDate (when the work was actually done)
+    class_ref?: string; // Class id — SalesItemLineDetail.ClassRef (requires per-line class tracking in QBO)
   }>;
   doc_number?: string;
   txn_date?: string; // YYYY-MM-DD
+  private_note?: string;
 }
 
 // Primitive field type map (based on Quickbooks Invoice entity reference docs)
@@ -54,6 +58,12 @@ export async function createQuickbooksInvoice(data: CreateInvoiceInput): Promise
     await quickbooksClient.authenticate();
     const quickbooks = quickbooksClient.getQuickbooks();
 
+    // QBO requires LinkedTxn at the invoice root, not per-line. Line-level LinkedTxn is silently dropped,
+    // leaving the linked TimeActivities at HasBeenBilled=false. Verified against working precedent inv 85981.
+    const linkedTxns = data.line_items
+      .filter((l) => l.linked_txn_id)
+      .map((l) => ({ TxnId: l.linked_txn_id as string, TxnType: "TimeActivity" }));
+
     const invoicePayload: any = {
       CustomerRef: { value: data.customer_ref },
       Line: data.line_items.map((l, idx) => ({
@@ -66,10 +76,14 @@ export async function createQuickbooksInvoice(data: CreateInvoiceInput): Promise
           ItemRef: { value: l.item_ref },
           Qty: l.qty,
           UnitPrice: l.unit_price,
+          ...(l.service_date && { ServiceDate: l.service_date }),
+          ...(l.class_ref && { ClassRef: { value: l.class_ref } }),
         },
       })),
+      ...(linkedTxns.length > 0 && { LinkedTxn: linkedTxns }),
       DocNumber: data.doc_number,
       TxnDate: data.txn_date,
+      PrivateNote: data.private_note,
     };
 
     const normalizedPayload = normalizeInvoiceFields(invoicePayload);

@@ -10,6 +10,8 @@ export interface UpdateTimeActivityInput {
   description?: string;
   billable_status?: "Billable" | "NotBillable" | "HasBeenBilled";
   item_ref?: string;
+  class_ref?: string;
+  txn_date?: string; // YYYY-MM-DD — MUST be passed to preserve the entry's date; QBO defaults TxnDate to today on a sparse update when omitted
 }
 
 export async function updateQuickbooksTimeActivity(data: UpdateTimeActivityInput): Promise<ToolResponse<any>> {
@@ -22,6 +24,8 @@ export async function updateQuickbooksTimeActivity(data: UpdateTimeActivityInput
     if (data.description) payload.Description = data.description;
     if (data.billable_status) payload.BillableStatus = data.billable_status;
     if (data.item_ref) payload.ItemRef = { value: data.item_ref };
+    if (data.class_ref) payload.ClassRef = { value: data.class_ref };
+    if (data.txn_date) payload.TxnDate = data.txn_date;
 
     return new Promise((resolve) => {
       (quickbooks as any).updateTimeActivity(payload, (err: any, updated: any) => {
